@@ -12,8 +12,8 @@ const openai = new OpenAI({
 })
 
 // Available voices: alloy, echo, fable, onyx, nova, shimmer
-// Using 'onyx' for a warm, scholarly tone fitting Philo's character
-const DEFAULT_VOICE: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'onyx'
+// Using 'nova' for a warm, friendly female voice
+const DEFAULT_VOICE: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova'
 
 // Using tts-1 for faster response, tts-1-hd for higher quality
 const DEFAULT_MODEL: 'tts-1' | 'tts-1-hd' = 'tts-1'
@@ -43,4 +43,3 @@ export async function synthesizeWithOpenAI(text: string): Promise<string> {
   
   return `data:audio/mp3;base64,${base64}`
 }
-

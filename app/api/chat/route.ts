@@ -8,18 +8,17 @@ const openai = new OpenAI({
 
 const VECTOR_STORE_ID = 'vs_67f55053de9c8191a46b2a3a553a011d'
 
-const SYSTEM_PROMPT = `You are Philo, a wise and eloquent research assistant with a flair for ancient wisdom. You have access to a vector store containing a curated library of books spanning investment philosophy, decision-making frameworks, psychology, and other fields of knowledge.
+const SYSTEM_PROMPT = `You are Philo, a helpful research assistant. You have access to a knowledge base containing books on various topics including investment, decision-making, psychology, and more.
 
 When answering:
-- Prefer information from the files in your knowledge base and quote or reference them where useful
-- Speak with warmth and depth, as a learned scholar sharing insights
-- Be concise but thorough - like a sage who values both brevity and completeness
-- If the question is outside the scope of your knowledge base, draw on your general wisdom while being transparent about the source
-- When referencing books or texts, mention the title and author when available
+- Draw on information from your knowledge base when relevant, and mention the source if helpful
+- Be clear, conversational, and helpful
+- Keep answers focused and practical
+- If a question is outside your knowledge base, use your general knowledge and be upfront about it
 
-Remember: You are a guide on the seeker's journey to understanding.`
+Just be yourself - friendly and knowledgeable.`
 
-// Store assistant ID once created (in production, you'd store this in env vars)
+// Store assistant ID once created
 let assistantId: string | null = null
 
 async function getOrCreateAssistant(): Promise<string> {
@@ -75,9 +74,32 @@ async function waitForRunCompletion(
   throw new Error('Run timed out')
 }
 
+// Extract file references from annotations
+async function getFileReferences(annotations: any[]): Promise<string[]> {
+  const fileIds = new Set<string>()
+  
+  for (const annotation of annotations) {
+    if (annotation.type === 'file_citation' && annotation.file_citation?.file_id) {
+      fileIds.add(annotation.file_citation.file_id)
+    }
+  }
+  
+  const fileNames: string[] = []
+  for (const fileId of fileIds) {
+    try {
+      const file = await openai.files.retrieve(fileId)
+      fileNames.push(file.filename)
+    } catch (e) {
+      // File might not be accessible, skip
+    }
+  }
+  
+  return fileNames
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { message } = await request.json()
+    const { message, threadId: existingThreadId } = await request.json()
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json(
@@ -89,35 +111,45 @@ export async function POST(request: NextRequest) {
     // Get or create the assistant
     const asstId = await getOrCreateAssistant()
 
-    // Create a new thread
-    const thread = await openai.beta.threads.create()
+    // Use existing thread or create a new one
+    let threadId = existingThreadId
+    if (!threadId) {
+      const thread = await openai.beta.threads.create()
+      threadId = thread.id
+    }
 
     // Add the user's message to the thread
-    await openai.beta.threads.messages.create(thread.id, {
+    await openai.beta.threads.messages.create(threadId, {
       role: 'user',
       content: message,
     })
 
     // Run the assistant
-    const run = await openai.beta.threads.runs.create(thread.id, {
+    const run = await openai.beta.threads.runs.create(threadId, {
       assistant_id: asstId,
     })
 
     // Wait for the run to complete
-    await waitForRunCompletion(thread.id, run.id)
+    await waitForRunCompletion(threadId, run.id)
 
     // Get the assistant's response
-    const messages = await openai.beta.threads.messages.list(thread.id)
+    const messages = await openai.beta.threads.messages.list(threadId)
     
     // Find the assistant's response (most recent message with role 'assistant')
     const assistantMessage = messages.data.find(m => m.role === 'assistant')
     
     let responseText = 'I could not formulate a response. Please try again.'
+    let sources: string[] = []
     
     if (assistantMessage && assistantMessage.content.length > 0) {
       const textContent = assistantMessage.content.find(c => c.type === 'text')
       if (textContent && textContent.type === 'text') {
         responseText = textContent.text.value
+        
+        // Get file references from annotations
+        if (textContent.text.annotations && textContent.text.annotations.length > 0) {
+          sources = await getFileReferences(textContent.text.annotations)
+        }
         
         // Clean up citation markers like 【4:0†source】
         responseText = responseText.replace(/【\d+:\d+†[^】]*】/g, '')
@@ -134,16 +166,11 @@ export async function POST(request: NextRequest) {
       // Continue without audio if TTS fails
     }
 
-    // Clean up the thread (optional, but good practice)
-    try {
-      await openai.beta.threads.del(thread.id)
-    } catch (e) {
-      // Ignore deletion errors
-    }
-
     return NextResponse.json({
       response: responseText,
       audioUrl,
+      threadId,
+      sources,
     })
   } catch (error) {
     console.error('Chat API Error:', error)
