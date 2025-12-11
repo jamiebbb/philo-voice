@@ -133,8 +133,10 @@ export default function Home() {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [isTranscribing, setIsTranscribing] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   // Get active chat
@@ -162,34 +164,33 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Initialize speech recognition
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-      if (SpeechRecognition) {
-        recognitionRef.current = new SpeechRecognition()
-        recognitionRef.current.continuous = false
-        recognitionRef.current.interimResults = true
-        recognitionRef.current.lang = 'en-US'
-
-        recognitionRef.current.onresult = (event) => {
-          const transcript = Array.from(event.results)
-            .map(result => result[0].transcript)
-            .join('')
-          setInputText(transcript)
-        }
-
-        recognitionRef.current.onend = () => {
-          setIsRecording(false)
-        }
-
-        recognitionRef.current.onerror = (event) => {
-          console.error('Speech recognition error:', event.error)
-          setIsRecording(false)
-        }
+  // Transcribe audio using Whisper API
+  const transcribeAudio = async (audioBlob: Blob) => {
+    setIsTranscribing(true)
+    try {
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'recording.webm')
+      
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        throw new Error('Transcription failed')
       }
+      
+      const data = await response.json()
+      if (data.text) {
+        setInputText(data.text)
+      }
+    } catch (error) {
+      console.error('Transcription error:', error)
+      alert('Failed to transcribe audio. Please try again.')
+    } finally {
+      setIsTranscribing(false)
     }
-  }, [])
+  }
 
   const createNewChat = useCallback(() => {
     const newChat: Chat = {
@@ -225,19 +226,43 @@ export default function Home() {
     ))
   }, [])
 
-  const toggleRecording = useCallback(() => {
-    if (!recognitionRef.current) {
-      alert('Speech recognition is not supported in this browser.')
-      return
-    }
-
+  const toggleRecording = useCallback(async () => {
     if (isRecording) {
-      recognitionRef.current.stop()
+      // Stop recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop()
+      }
       setIsRecording(false)
     } else {
-      setInputText('')
-      recognitionRef.current.start()
-      setIsRecording(true)
+      // Start recording
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        const mediaRecorder = new MediaRecorder(stream)
+        mediaRecorderRef.current = mediaRecorder
+        audioChunksRef.current = []
+        
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data)
+          }
+        }
+        
+        mediaRecorder.onstop = async () => {
+          // Stop all tracks to release microphone
+          stream.getTracks().forEach(track => track.stop())
+          
+          // Create audio blob and transcribe
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+          await transcribeAudio(audioBlob)
+        }
+        
+        setInputText('')
+        mediaRecorder.start()
+        setIsRecording(true)
+      } catch (error) {
+        console.error('Error accessing microphone:', error)
+        alert('Could not access microphone. Please check permissions.')
+      }
     }
   }, [isRecording])
 
@@ -635,14 +660,17 @@ export default function Home() {
               <motion.button
                 type="button"
                 onClick={toggleRecording}
+                disabled={isTranscribing}
                 whileTap={{ scale: 0.95 }}
                 className={`flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 ${
                   isRecording
                     ? 'bg-phoenician-terracotta recording-active gold-glow'
+                    : isTranscribing
+                    ? 'bg-phoenician-wine/50 cursor-wait'
                     : 'bg-phoenician-navy hover:bg-phoenician-sea border-2 border-phoenician-bronze'
                 }`}
               >
-                <MicrophoneIcon isRecording={isRecording} />
+                <MicrophoneIcon isRecording={isRecording || isTranscribing} />
               </motion.button>
 
               {/* Text Input */}
@@ -694,14 +722,14 @@ export default function Home() {
               )}
             </div>
 
-            {/* Recording indicator */}
-            {isRecording && (
+            {/* Recording/Transcribing indicator */}
+            {(isRecording || isTranscribing) && (
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="text-center text-phoenician-terracotta font-body mt-3"
               >
-                ● Listening...
+                {isRecording ? '● Recording... (click to stop)' : '⏳ Transcribing...'}
               </motion.p>
             )}
           </form>
