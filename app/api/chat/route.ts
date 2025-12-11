@@ -19,6 +19,62 @@ When answering:
 
 Remember: You are a guide on the seeker's journey to understanding.`
 
+// Store assistant ID once created (in production, you'd store this in env vars)
+let assistantId: string | null = null
+
+async function getOrCreateAssistant(): Promise<string> {
+  if (assistantId) return assistantId
+
+  // Check if we have a stored assistant ID in env
+  if (process.env.OPENAI_ASSISTANT_ID) {
+    assistantId = process.env.OPENAI_ASSISTANT_ID
+    return assistantId
+  }
+
+  // Create a new assistant with file search capabilities
+  const assistant = await openai.beta.assistants.create({
+    name: 'Philo',
+    instructions: SYSTEM_PROMPT,
+    model: 'gpt-4o',
+    tools: [{ type: 'file_search' }],
+    tool_resources: {
+      file_search: {
+        vector_store_ids: [VECTOR_STORE_ID],
+      },
+    },
+  })
+
+  assistantId = assistant.id
+  console.log('Created new assistant:', assistantId)
+  return assistantId
+}
+
+async function waitForRunCompletion(
+  threadId: string,
+  runId: string,
+  maxAttempts = 60
+): Promise<OpenAI.Beta.Threads.Runs.Run> {
+  let attempts = 0
+  
+  while (attempts < maxAttempts) {
+    const run = await openai.beta.threads.runs.retrieve(threadId, runId)
+    
+    if (run.status === 'completed') {
+      return run
+    }
+    
+    if (run.status === 'failed' || run.status === 'cancelled' || run.status === 'expired') {
+      throw new Error(`Run ${run.status}: ${run.last_error?.message || 'Unknown error'}`)
+    }
+    
+    // Wait before polling again
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    attempts++
+  }
+  
+  throw new Error('Run timed out')
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { message } = await request.json()
@@ -30,25 +86,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use the Responses API with file search
-    const response = await openai.responses.create({
-      model: 'gpt-4o',
-      input: message,
-      instructions: SYSTEM_PROMPT,
-      tools: [
-        {
-          type: 'file_search',
-          vector_store_ids: [VECTOR_STORE_ID],
-        },
-      ],
+    // Get or create the assistant
+    const asstId = await getOrCreateAssistant()
+
+    // Create a new thread
+    const thread = await openai.beta.threads.create()
+
+    // Add the user's message to the thread
+    await openai.beta.threads.messages.create(thread.id, {
+      role: 'user',
+      content: message,
     })
 
-    // Extract the text response
-    const textOutput = response.output.find(
-      (item: any) => item.type === 'text'
-    ) as { type: 'text'; text: string } | undefined
+    // Run the assistant
+    const run = await openai.beta.threads.runs.create(thread.id, {
+      assistant_id: asstId,
+    })
 
-    const responseText = textOutput?.text || 'I could not formulate a response. Please try again.'
+    // Wait for the run to complete
+    await waitForRunCompletion(thread.id, run.id)
+
+    // Get the assistant's response
+    const messages = await openai.beta.threads.messages.list(thread.id)
+    
+    // Find the assistant's response (most recent message with role 'assistant')
+    const assistantMessage = messages.data.find(m => m.role === 'assistant')
+    
+    let responseText = 'I could not formulate a response. Please try again.'
+    
+    if (assistantMessage && assistantMessage.content.length > 0) {
+      const textContent = assistantMessage.content.find(c => c.type === 'text')
+      if (textContent && textContent.type === 'text') {
+        responseText = textContent.text.value
+        
+        // Clean up citation markers like 【4:0†source】
+        responseText = responseText.replace(/【\d+:\d+†[^】]*】/g, '')
+      }
+    }
 
     // Generate TTS audio
     let audioUrl: string | null = null
@@ -58,6 +132,13 @@ export async function POST(request: NextRequest) {
     } catch (ttsError) {
       console.error('TTS Error:', ttsError)
       // Continue without audio if TTS fails
+    }
+
+    // Clean up the thread (optional, but good practice)
+    try {
+      await openai.beta.threads.del(thread.id)
+    } catch (e) {
+      // Ignore deletion errors
     }
 
     return NextResponse.json({
@@ -81,4 +162,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
