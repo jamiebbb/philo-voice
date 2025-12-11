@@ -9,6 +9,10 @@ interface Message {
   content: string
   timestamp: Date
   sources?: string[]
+  debug?: {
+    toolsUsed: string[]
+    hasAnnotations: boolean
+  }
 }
 
 interface Chat {
@@ -298,6 +302,7 @@ export default function Home() {
         content: data.response,
         timestamp: new Date(),
         sources: data.sources,
+        debug: data.debug,
       }
 
       // Update chat with assistant message and thread ID
@@ -573,6 +578,16 @@ export default function Home() {
                         <div className="mt-3 pt-3 border-t border-white/10">
                           <p className="text-xs text-phoenician-gold/80 font-body">
                             📚 Sources: {message.sources.join(', ')}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Debug info (temporary) */}
+                      {message.debug && (
+                        <div className="mt-2 pt-2 border-t border-white/10">
+                          <p className="text-xs text-phoenician-sand/50 font-mono">
+                            🔧 Tools: {message.debug.toolsUsed.length > 0 ? message.debug.toolsUsed.join(', ') : 'none'} | 
+                            Annotations: {message.debug.hasAnnotations ? 'yes' : 'no'}
                           </p>
                         </div>
                       )}

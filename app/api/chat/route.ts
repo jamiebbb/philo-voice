@@ -17,29 +17,26 @@ When answering:
 
 Just be yourself - friendly and knowledgeable.`
 
-// Store assistant ID once created
+// Store assistant ID once created (resets on each deployment)
 let assistantId: string | null = null
 
 async function getOrCreateAssistant(): Promise<string> {
+  // Always check env first - this allows using a pre-configured assistant
+  if (process.env.OPENAI_ASSISTANT_ID) {
+    return process.env.OPENAI_ASSISTANT_ID
+  }
+  
   if (assistantId) return assistantId
 
-  // Check if we have a stored assistant ID in env
-  if (process.env.OPENAI_ASSISTANT_ID) {
-    assistantId = process.env.OPENAI_ASSISTANT_ID
-    return assistantId
-  }
+  console.log('Creating new assistant with vector store:', VECTOR_STORE_ID)
 
   // Create a new assistant with file search capabilities
+  // Using gpt-4o for better file search support
   const assistant = await openai.beta.assistants.create({
     name: 'Philo',
     instructions: SYSTEM_PROMPT,
-    model: 'gpt-4o-mini',
-    tools: [{ 
-      type: 'file_search',
-      file_search: {
-        max_num_results: 20, // Default: retrieve top 20 chunks
-      }
-    }],
+    model: 'gpt-4o',
+    tools: [{ type: 'file_search' }],
     tool_resources: {
       file_search: {
         vector_store_ids: [VECTOR_STORE_ID],
@@ -49,6 +46,11 @@ async function getOrCreateAssistant(): Promise<string> {
 
   assistantId = assistant.id
   console.log('Created new assistant:', assistantId)
+  
+  // Verify the assistant has the vector store attached
+  const createdAssistant = await openai.beta.assistants.retrieve(assistantId)
+  console.log('Assistant tool_resources:', JSON.stringify(createdAssistant.tool_resources))
+  
   return assistantId
 }
 
@@ -135,7 +137,19 @@ export async function POST(request: NextRequest) {
     })
 
     // Wait for the run to complete
-    await waitForRunCompletion(threadId, run.id)
+    const completedRun = await waitForRunCompletion(threadId, run.id)
+    
+    // Check what tools were used (for debugging)
+    const runSteps = await openai.beta.threads.runs.steps.list(threadId, run.id)
+    const toolsUsed = runSteps.data
+      .filter(step => step.type === 'tool_calls')
+      .flatMap(step => {
+        if (step.step_details.type === 'tool_calls') {
+          return step.step_details.tool_calls.map(tc => tc.type)
+        }
+        return []
+      })
+    console.log('Tools used in this run:', toolsUsed)
 
     // Get the assistant's response
     const messages = await openai.beta.threads.messages.list(threadId)
@@ -166,6 +180,10 @@ export async function POST(request: NextRequest) {
       response: responseText,
       threadId,
       sources,
+      debug: {
+        toolsUsed,
+        hasAnnotations: sources.length > 0,
+      }
     })
   } catch (error) {
     console.error('Chat API Error:', error)
