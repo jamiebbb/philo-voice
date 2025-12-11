@@ -1,0 +1,206 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --terracotta: #C84B31;
+  --bronze: #B8860B;
+  --gold: #D4AF37;
+  --sand: #E8D5B7;
+  --cream: #FAF3E0;
+  --navy: #1B2838;
+  --deep: #0D1821;
+  --sea: #2E5266;
+  --purple: #4A1942;
+  --wine: #722F37;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--deep);
+  color: var(--cream);
+  font-family: 'Cormorant Garamond', serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Phoenician geometric pattern background */
+.phoenician-pattern {
+  background-image: 
+    linear-gradient(30deg, var(--purple) 12%, transparent 12.5%, transparent 87%, var(--purple) 87.5%, var(--purple)),
+    linear-gradient(150deg, var(--purple) 12%, transparent 12.5%, transparent 87%, var(--purple) 87.5%, var(--purple)),
+    linear-gradient(30deg, var(--purple) 12%, transparent 12.5%, transparent 87%, var(--purple) 87.5%, var(--purple)),
+    linear-gradient(150deg, var(--purple) 12%, transparent 12.5%, transparent 87%, var(--purple) 87.5%, var(--purple)),
+    linear-gradient(60deg, var(--wine) 25%, transparent 25.5%, transparent 75%, var(--wine) 75%, var(--wine)),
+    linear-gradient(60deg, var(--wine) 25%, transparent 25.5%, transparent 75%, var(--wine) 75%, var(--wine));
+  background-size: 80px 140px;
+  background-position: 0 0, 0 0, 40px 70px, 40px 70px, 0 0, 40px 70px;
+}
+
+/* Wave pattern for seafaring vibes */
+.wave-pattern {
+  background: 
+    radial-gradient(ellipse at 50% 100%, var(--sea) 0%, transparent 50%),
+    linear-gradient(180deg, var(--deep) 0%, var(--navy) 50%, var(--sea) 100%);
+}
+
+/* Gold accent glow */
+.gold-glow {
+  box-shadow: 
+    0 0 20px rgba(212, 175, 55, 0.3),
+    0 0 40px rgba(212, 175, 55, 0.1),
+    inset 0 0 20px rgba(212, 175, 55, 0.05);
+}
+
+.gold-border {
+  border: 2px solid var(--gold);
+  position: relative;
+}
+
+.gold-border::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border: 1px solid var(--bronze);
+  pointer-events: none;
+}
+
+/* Ancient scroll effect for transcript */
+.scroll-paper {
+  background: linear-gradient(
+    135deg,
+    var(--cream) 0%,
+    var(--sand) 50%,
+    #d4c5a9 100%
+  );
+  color: var(--deep);
+  position: relative;
+}
+
+.scroll-paper::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+}
+
+/* Voice recording pulse animation */
+@keyframes recording-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+}
+
+.recording-active {
+  animation: recording-pulse 1s ease-in-out infinite;
+}
+
+/* Phoenician ship icon styling */
+.ship-icon {
+  filter: drop-shadow(0 0 10px var(--gold));
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--navy);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bronze);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
+}
+
+/* Text selection */
+::selection {
+  background: var(--gold);
+  color: var(--deep);
+}
+
+/* Message bubbles */
+.message-user {
+  background: linear-gradient(135deg, var(--terracotta), var(--wine));
+  border-radius: 20px 20px 4px 20px;
+}
+
+.message-assistant {
+  background: linear-gradient(135deg, var(--sea), var(--navy));
+  border-radius: 20px 20px 20px 4px;
+}
+
+/* Button hover effects */
+.btn-phoenician {
+  background: linear-gradient(135deg, var(--terracotta), var(--wine));
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-phoenician::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn-phoenician:hover::before {
+  left: 100%;
+}
+
+.btn-phoenician:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(200, 75, 49, 0.4);
+}
+
+/* Loading dots animation */
+@keyframes loading-dots {
+  0%, 20% { opacity: 0; }
+  50% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.loading-dot {
+  animation: loading-dots 1.4s infinite;
+}
+
+.loading-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
