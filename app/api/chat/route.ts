@@ -34,8 +34,13 @@ async function getOrCreateAssistant(): Promise<string> {
   const assistant = await openai.beta.assistants.create({
     name: 'Philo',
     instructions: SYSTEM_PROMPT,
-    model: 'gpt-4o',
-    tools: [{ type: 'file_search' }],
+    model: 'gpt-4o-mini',
+    tools: [{ 
+      type: 'file_search',
+      file_search: {
+        max_num_results: 5, // Limit to 5 chunks for faster retrieval
+      }
+    }],
     tool_resources: {
       file_search: {
         vector_store_ids: [VECTOR_STORE_ID],
@@ -85,9 +90,10 @@ async function getFileReferences(annotations: any[]): Promise<string[]> {
   }
   
   const fileNames: string[] = []
-  for (const fileId of fileIds) {
+  const fileIdArray = Array.from(fileIds)
+  for (let i = 0; i < fileIdArray.length; i++) {
     try {
-      const file = await openai.files.retrieve(fileId)
+      const file = await openai.files.retrieve(fileIdArray[i])
       fileNames.push(file.filename)
     } catch (e) {
       // File might not be accessible, skip
