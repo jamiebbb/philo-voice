@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
 
     // Extract the text response
     const textOutput = response.output.find(
-      (item): item is OpenAI.Responses.ResponseOutputText => item.type === 'text'
-    )
+      (item: any) => item.type === 'text'
+    ) as { type: 'text'; text: string } | undefined
 
     const responseText = textOutput?.text || 'I could not formulate a response. Please try again.'
 
