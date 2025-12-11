@@ -128,9 +128,10 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
+  const [voiceEnabled, setVoiceEnabled] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   // Get active chat
   const activeChat = chats.find(c => c.id === activeChatId) || null
@@ -310,13 +311,34 @@ export default function Home() {
           : chat
       ))
 
-      // Speak the response using TTS
-      if (data.audioUrl) {
-        setIsSpeaking(true)
-        audioRef.current = new Audio(data.audioUrl)
-        audioRef.current.onended = () => setIsSpeaking(false)
-        audioRef.current.onerror = () => setIsSpeaking(false)
-        audioRef.current.play()
+      // Speak the response using client-side TTS (Web Speech API)
+      if (voiceEnabled && typeof window !== 'undefined' && window.speechSynthesis) {
+        // Cancel any ongoing speech
+        window.speechSynthesis.cancel()
+        
+        const utterance = new SpeechSynthesisUtterance(data.response)
+        utterance.rate = 1.0
+        utterance.pitch = 1.0
+        
+        // Try to find a good female voice
+        const voices = window.speechSynthesis.getVoices()
+        const preferredVoice = voices.find(v => 
+          v.name.includes('Samantha') || // macOS
+          v.name.includes('Microsoft Zira') || // Windows
+          v.name.includes('Google UK English Female') || // Chrome
+          (v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+        ) || voices.find(v => v.lang.startsWith('en'))
+        
+        if (preferredVoice) {
+          utterance.voice = preferredVoice
+        }
+        
+        utterance.onstart = () => setIsSpeaking(true)
+        utterance.onend = () => setIsSpeaking(false)
+        utterance.onerror = () => setIsSpeaking(false)
+        
+        utteranceRef.current = utterance
+        window.speechSynthesis.speak(utterance)
       }
     } catch (error) {
       console.error('Error:', error)
@@ -342,11 +364,17 @@ export default function Home() {
   }
 
   const stopSpeaking = () => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel()
       setIsSpeaking(false)
     }
+  }
+  
+  const toggleVoice = () => {
+    if (isSpeaking) {
+      stopSpeaking()
+    }
+    setVoiceEnabled(prev => !prev)
   }
 
   return (
@@ -469,6 +497,22 @@ export default function Home() {
                 </h1>
               </div>
               
+              <button
+                onClick={toggleVoice}
+                className={`p-2 rounded-lg transition-colors ${voiceEnabled ? 'bg-phoenician-sea/50' : 'hover:bg-phoenician-navy/50'}`}
+                title={voiceEnabled ? 'Voice on' : 'Voice off'}
+              >
+                {voiceEnabled ? (
+                  <svg className="w-6 h-6 text-phoenician-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6 text-phoenician-sand/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                  </svg>
+                )}
+              </button>
               <button
                 onClick={createNewChat}
                 className="p-2 rounded-lg hover:bg-phoenician-navy/50 transition-colors"

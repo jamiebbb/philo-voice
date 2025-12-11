@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { synthesizeSpeech, TTSProvider } from '@/lib/tts'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -38,7 +37,7 @@ async function getOrCreateAssistant(): Promise<string> {
     tools: [{ 
       type: 'file_search',
       file_search: {
-        max_num_results: 5, // Limit to 5 chunks for faster retrieval
+        max_num_results: 20, // Default: retrieve top 20 chunks
       }
     }],
     tool_resources: {
@@ -162,19 +161,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate TTS audio
-    let audioUrl: string | null = null
-    try {
-      const ttsProvider: TTSProvider = (process.env.TTS_PROVIDER as TTSProvider) || 'openai'
-      audioUrl = await synthesizeSpeech(responseText, ttsProvider)
-    } catch (ttsError) {
-      console.error('TTS Error:', ttsError)
-      // Continue without audio if TTS fails
-    }
-
+    // TTS is now handled client-side for faster response times
     return NextResponse.json({
       response: responseText,
-      audioUrl,
       threadId,
       sources,
     })
