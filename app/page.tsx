@@ -355,8 +355,9 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        console.error('TTS failed:', await response.text())
-        setIsSpeaking(false)
+        console.warn('ElevenLabs TTS failed, falling back to browser TTS')
+        // Fallback to browser TTS
+        fallbackToBrowserTTS(text)
         return
       }
 
@@ -365,13 +366,44 @@ export default function Home() {
       if (data.audioUrl) {
         audioRef.current = new Audio(data.audioUrl)
         audioRef.current.onended = () => setIsSpeaking(false)
-        audioRef.current.onerror = () => setIsSpeaking(false)
+        audioRef.current.onerror = () => {
+          // If audio playback fails, try browser TTS
+          fallbackToBrowserTTS(text)
+        }
         audioRef.current.play()
       } else {
         setIsSpeaking(false)
       }
     } catch (error) {
-      console.error('TTS Error:', error)
+      console.error('TTS Error, using browser fallback:', error)
+      fallbackToBrowserTTS(text)
+    }
+  }
+
+  const fallbackToBrowserTTS = (text: string) => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel()
+      
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.rate = 1.0
+      utterance.pitch = 1.0
+      
+      // Try to find a good voice
+      const voices = window.speechSynthesis.getVoices()
+      const preferredVoice = voices.find(v => 
+        v.lang.startsWith('en') && !v.localService
+      ) || voices.find(v => v.lang.startsWith('en'))
+      
+      if (preferredVoice) {
+        utterance.voice = preferredVoice
+      }
+      
+      utterance.onstart = () => setIsSpeaking(true)
+      utterance.onend = () => setIsSpeaking(false)
+      utterance.onerror = () => setIsSpeaking(false)
+      
+      window.speechSynthesis.speak(utterance)
+    } else {
       setIsSpeaking(false)
     }
   }

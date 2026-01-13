@@ -19,6 +19,24 @@ interface LibraryData {
   files: BookFile[]
 }
 
+interface CreditsData {
+  characterCount: number
+  characterLimit: number
+  nextCharacterCountResetUnix: number | null
+}
+
+interface BookMetadata {
+  [filename: string]: {
+    title: string
+    author: string
+    topic: string
+    location: string
+    status: 'available' | 'checked-out'
+    checkedOutBy: string | null
+    notes: string
+  }
+}
+
 // Phoenician ship icon
 const PhoenicianShip = ({ className = '' }: { className?: string }) => (
   <svg viewBox="0 0 120 60" className={className} fill="currentColor">
@@ -43,16 +61,44 @@ function formatBytes(bytes: number): string {
 
 export default function LibraryPage() {
   const [library, setLibrary] = useState<LibraryData | null>(null)
+  const [credits, setCredits] = useState<CreditsData | null>(null)
+  const [metadata, setMetadata] = useState<BookMetadata>({})
+  const [editingBook, setEditingBook] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
-    const fetchLibrary = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch('/api/library')
-        if (!response.ok) throw new Error('Failed to fetch library')
-        const data = await response.json()
-        setLibrary(data)
+        // Fetch library
+        const libraryResponse = await fetch('/api/library')
+        if (!libraryResponse.ok) throw new Error('Failed to fetch library')
+        const libraryData = await libraryResponse.json()
+        setLibrary(libraryData)
+
+        // Fetch credits
+        try {
+          const creditsResponse = await fetch('/api/tts/credits')
+          if (creditsResponse.ok) {
+            const creditsData = await creditsResponse.json()
+            setCredits(creditsData)
+          }
+        } catch (e) {
+          console.warn('Could not fetch credits:', e)
+        }
+
+        // Fetch metadata
+        try {
+          const metadataResponse = await fetch('/api/metadata')
+          if (metadataResponse.ok) {
+            const metadataData = await metadataResponse.json()
+            setMetadata(metadataData)
+          }
+        } catch (e) {
+          console.warn('Could not fetch metadata:', e)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load library')
       } finally {
@@ -60,8 +106,72 @@ export default function LibraryPage() {
       }
     }
 
-    fetchLibrary()
+    fetchData()
   }, [])
+
+  const updateBookMetadata = async (filename: string, updates: Partial<BookMetadata[string]>) => {
+    const currentMeta = metadata[filename] || {
+      title: filename.replace('.pdf', ''),
+      author: '',
+      topic: '',
+      location: 'Not assigned',
+      status: 'available' as const,
+      checkedOutBy: null,
+      notes: '',
+    }
+
+    const updatedMetadata = {
+      ...metadata,
+      [filename]: { ...currentMeta, ...updates }
+    }
+
+    try {
+      const response = await fetch('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedMetadata),
+      })
+
+      if (response.ok) {
+        setMetadata(updatedMetadata)
+        setEditingBook(null)
+      }
+    } catch (error) {
+      console.error('Failed to update metadata:', error)
+    }
+  }
+
+  const handleFileUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!uploadFile) return
+
+    setUploading(true)
+    const formData = new FormData()
+    formData.append('file', uploadFile)
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+      
+      if (response.ok) {
+        alert(`Success! ${data.message}`)
+        setUploadFile(null)
+        // Refresh the library
+        window.location.reload()
+      } else {
+        alert(`Upload failed: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-phoenician-deep via-phoenician-navy to-phoenician-deep">
@@ -147,7 +257,7 @@ export default function LibraryPage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+              className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"
             >
               <div className="bg-phoenician-navy/40 border border-phoenician-bronze/30 rounded-xl p-6 text-center">
                 <div className="text-3xl font-display font-bold text-phoenician-gold mb-2">
@@ -175,6 +285,20 @@ export default function LibraryPage() {
                   Ready to Search
                 </div>
               </div>
+
+              {credits && (
+                <div className="bg-phoenician-navy/40 border border-phoenician-bronze/30 rounded-xl p-6 text-center">
+                  <div className="text-3xl font-display font-bold text-phoenician-gold mb-2">
+                    {credits.characterLimit - credits.characterCount}
+                  </div>
+                  <div className="font-body text-phoenician-sand/70">
+                    Voice Credits Left
+                  </div>
+                  <div className="text-xs text-phoenician-sand/50 mt-1">
+                    {Math.round((credits.characterLimit - credits.characterCount) / 500)} responses
+                  </div>
+                </div>
+              )}
             </motion.div>
 
             {/* Books Grid */}
