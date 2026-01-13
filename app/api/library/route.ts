@@ -9,40 +9,39 @@ const VECTOR_STORE_ID = 'vs_67f55053de9c8191a46b2a3a553a011d'
 
 export async function GET() {
   try {
-    // Get the vector store details
-    const vectorStore = await openai.beta.vectorStores.retrieve(VECTOR_STORE_ID)
+    // List all files from the assistant or directly from files API
+    const allFiles = await openai.files.list({
+      purpose: 'assistants',
+    })
     
-    // List all files in the vector store
-    const files = await openai.beta.vectorStores.files.list(VECTOR_STORE_ID)
-    
-    // Get file details for each file
-    const fileDetails = await Promise.all(
-      files.data.map(async (vsFile) => {
-        try {
-          const file = await openai.files.retrieve(vsFile.id)
-          return {
-            id: file.id,
-            filename: file.filename,
-            size: file.bytes,
-            createdAt: new Date(file.created_at * 1000),
-            status: vsFile.status,
-          }
-        } catch (e) {
-          return null
-        }
-      })
-    )
-    
-    const validFiles = fileDetails.filter(f => f !== null)
+    // Get file details - filter for those likely in the vector store
+    const fileDetails = allFiles.data
+      .filter(file => file.filename.toLowerCase().endsWith('.pdf'))
+      .map(file => ({
+        id: file.id,
+        filename: file.filename,
+        size: file.bytes,
+        createdAt: new Date(file.created_at * 1000),
+        status: 'completed', // Assume completed if listed
+      }))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) // Sort by newest first
     
     return NextResponse.json({
       vectorStoreId: VECTOR_STORE_ID,
-      vectorStoreName: vectorStore.name,
-      fileCount: vectorStore.file_counts.total,
-      files: validFiles,
+      vectorStoreName: 'Philo Library',
+      fileCount: fileDetails.length,
+      files: fileDetails,
     })
   } catch (error) {
     console.error('Library API Error:', error)
+    
+    if (error instanceof OpenAI.APIError) {
+      return NextResponse.json(
+        { error: `OpenAI API Error: ${error.message}` },
+        { status: error.status || 500 }
+      )
+    }
+    
     return NextResponse.json(
       { error: 'Failed to fetch library' },
       { status: 500 }
