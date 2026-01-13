@@ -1,23 +1,12 @@
 /**
- * ElevenLabs TTS Provider (Placeholder)
+ * ElevenLabs TTS Provider
  * 
- * This module is ready for ElevenLabs integration.
- * To enable:
- * 1. Get an API key from https://elevenlabs.io
- * 2. Add ELEVENLABS_API_KEY to your environment variables
- * 3. Implement the synthesizeWithElevenLabs function below
- * 
+ * Uses ElevenLabs API for high-quality text-to-speech
  * Documentation: https://docs.elevenlabs.io/api-reference/text-to-speech
  */
 
-// ElevenLabs voice IDs (some popular ones)
-// You can find more at: https://api.elevenlabs.io/v1/voices
-const VOICE_IDS = {
-  adam: '21m00Tcm4TlvDq8ikWAM',      // Deep, professional male
-  rachel: '21m00Tcm4TlvDq8ikWAM',    // Calm female
-  josh: 'TxGEqnHWrfWFTfGW9XjX',       // Conversational male
-  bella: 'EXAVITQu4vr4xnSDxMaL',      // Soft female
-}
+// Default voice: Jamie
+const DEFAULT_VOICE_ID = 'llNlEi50DSCIEuoOIaH7'
 
 /**
  * Synthesize speech using ElevenLabs API
@@ -30,12 +19,11 @@ export async function synthesizeWithElevenLabs(text: string): Promise<string> {
   if (!apiKey) {
     throw new Error(
       'ElevenLabs API key not configured. ' +
-      'Please set ELEVENLABS_API_KEY in your environment variables, ' +
-      'or switch to OpenAI TTS by setting TTS_PROVIDER=openai'
+      'Please set ELEVENLABS_API_KEY in your environment variables.'
     )
   }
 
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || VOICE_IDS.adam
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -48,10 +36,12 @@ export async function synthesizeWithElevenLabs(text: string): Promise<string> {
       },
       body: JSON.stringify({
         text: text,
-        model_id: 'eleven_monolingual_v1',
+        model_id: 'eleven_turbo_v2_5',
         voice_settings: {
           stability: 0.5,
-          similarity_boost: 0.75,
+          similarity_boost: 0.8,
+          style: 0.0,
+          use_speaker_boost: true
         },
       }),
     }

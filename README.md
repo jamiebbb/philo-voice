@@ -67,9 +67,10 @@ Philo is a Phoenician-inspired voice chatbot that connects to OpenAI's Responses
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | Your OpenAI API key |
-| `TTS_PROVIDER` | No | TTS provider: `openai` (default) or `elevenlabs` |
-| `ELEVENLABS_API_KEY` | No | ElevenLabs API key (if using ElevenLabs) |
-| `ELEVENLABS_VOICE_ID` | No | Custom ElevenLabs voice ID |
+| `OPENAI_ASSISTANT_ID` | Recommended | Your assistant ID (prevents creating new ones on deploy) |
+| `TTS_PROVIDER` | No | TTS provider: `elevenlabs` (default) or `openai` |
+| `ELEVENLABS_API_KEY` | Yes (for TTS) | ElevenLabs API key |
+| `ELEVENLABS_VOICE_ID` | No | Custom voice ID (defaults to Jamie) |
 
 ### Switching TTS Providers
 

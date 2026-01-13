@@ -133,11 +133,9 @@ export default function Home() {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
-  const [isTranscribing, setIsTranscribing] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   // Get active chat
   const activeChat = chats.find(c => c.id === activeChatId) || null
@@ -164,33 +162,34 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Transcribe audio using Whisper API
-  const transcribeAudio = async (audioBlob: Blob) => {
-    setIsTranscribing(true)
-    try {
-      const formData = new FormData()
-      formData.append('audio', audioBlob, 'recording.webm')
-      
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData,
-      })
-      
-      if (!response.ok) {
-        throw new Error('Transcription failed')
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      if (SpeechRecognition) {
+        recognitionRef.current = new SpeechRecognition()
+        recognitionRef.current.continuous = false
+        recognitionRef.current.interimResults = true
+        recognitionRef.current.lang = 'en-US'
+
+        recognitionRef.current.onresult = (event) => {
+          const transcript = Array.from(event.results)
+            .map(result => result[0].transcript)
+            .join('')
+          setInputText(transcript)
+        }
+
+        recognitionRef.current.onend = () => {
+          setIsRecording(false)
+        }
+
+        recognitionRef.current.onerror = (event) => {
+          console.error('Speech recognition error:', event.error)
+          setIsRecording(false)
+        }
       }
-      
-      const data = await response.json()
-      if (data.text) {
-        setInputText(data.text)
-      }
-    } catch (error) {
-      console.error('Transcription error:', error)
-      alert('Failed to transcribe audio. Please try again.')
-    } finally {
-      setIsTranscribing(false)
     }
-  }
+  }, [])
 
   const createNewChat = useCallback(() => {
     const newChat: Chat = {
@@ -226,43 +225,19 @@ export default function Home() {
     ))
   }, [])
 
-  const toggleRecording = useCallback(async () => {
+  const toggleRecording = useCallback(() => {
+    if (!recognitionRef.current) {
+      alert('Speech recognition is not supported in this browser.')
+      return
+    }
+
     if (isRecording) {
-      // Stop recording
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop()
-      }
+      recognitionRef.current.stop()
       setIsRecording(false)
     } else {
-      // Start recording
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        const mediaRecorder = new MediaRecorder(stream)
-        mediaRecorderRef.current = mediaRecorder
-        audioChunksRef.current = []
-        
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data)
-          }
-        }
-        
-        mediaRecorder.onstop = async () => {
-          // Stop all tracks to release microphone
-          stream.getTracks().forEach(track => track.stop())
-          
-          // Create audio blob and transcribe
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-          await transcribeAudio(audioBlob)
-        }
-        
-        setInputText('')
-        mediaRecorder.start()
-        setIsRecording(true)
-      } catch (error) {
-        console.error('Error accessing microphone:', error)
-        alert('Could not access microphone. Please check permissions.')
-      }
+      setInputText('')
+      recognitionRef.current.start()
+      setIsRecording(true)
     }
   }, [isRecording])
 
@@ -341,34 +316,10 @@ export default function Home() {
           : chat
       ))
 
-      // Speak the response using client-side TTS (Web Speech API)
-      if (voiceEnabled && typeof window !== 'undefined' && window.speechSynthesis) {
-        // Cancel any ongoing speech
-        window.speechSynthesis.cancel()
-        
-        const utterance = new SpeechSynthesisUtterance(data.response)
-        utterance.rate = 1.0
-        utterance.pitch = 1.0
-        
-        // Try to find a good female voice
-        const voices = window.speechSynthesis.getVoices()
-        const preferredVoice = voices.find(v => 
-          v.name.includes('Samantha') || // macOS
-          v.name.includes('Microsoft Zira') || // Windows
-          v.name.includes('Google UK English Female') || // Chrome
-          (v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
-        ) || voices.find(v => v.lang.startsWith('en'))
-        
-        if (preferredVoice) {
-          utterance.voice = preferredVoice
-        }
-        
-        utterance.onstart = () => setIsSpeaking(true)
-        utterance.onend = () => setIsSpeaking(false)
-        utterance.onerror = () => setIsSpeaking(false)
-        
-        utteranceRef.current = utterance
-        window.speechSynthesis.speak(utterance)
+      // Generate TTS audio asynchronously (non-blocking)
+      if (voiceEnabled) {
+        // Don't block on audio - fetch it in the background
+        fetchTTSAudio(data.response)
       }
     } catch (error) {
       console.error('Error:', error)
@@ -393,9 +344,41 @@ export default function Home() {
     sendMessage(inputText)
   }
 
+  const fetchTTSAudio = async (text: string) => {
+    try {
+      setIsSpeaking(true)
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+
+      if (!response.ok) {
+        console.error('TTS failed:', await response.text())
+        setIsSpeaking(false)
+        return
+      }
+
+      const data = await response.json()
+      
+      if (data.audioUrl) {
+        audioRef.current = new Audio(data.audioUrl)
+        audioRef.current.onended = () => setIsSpeaking(false)
+        audioRef.current.onerror = () => setIsSpeaking(false)
+        audioRef.current.play()
+      } else {
+        setIsSpeaking(false)
+      }
+    } catch (error) {
+      console.error('TTS Error:', error)
+      setIsSpeaking(false)
+    }
+  }
+
   const stopSpeaking = () => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel()
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
       setIsSpeaking(false)
     }
   }
@@ -660,17 +643,14 @@ export default function Home() {
               <motion.button
                 type="button"
                 onClick={toggleRecording}
-                disabled={isTranscribing}
                 whileTap={{ scale: 0.95 }}
                 className={`flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 ${
                   isRecording
                     ? 'bg-phoenician-terracotta recording-active gold-glow'
-                    : isTranscribing
-                    ? 'bg-phoenician-wine/50 cursor-wait'
                     : 'bg-phoenician-navy hover:bg-phoenician-sea border-2 border-phoenician-bronze'
                 }`}
               >
-                <MicrophoneIcon isRecording={isRecording || isTranscribing} />
+                <MicrophoneIcon isRecording={isRecording} />
               </motion.button>
 
               {/* Text Input */}
@@ -722,14 +702,14 @@ export default function Home() {
               )}
             </div>
 
-            {/* Recording/Transcribing indicator */}
-            {(isRecording || isTranscribing) && (
+            {/* Recording indicator */}
+            {isRecording && (
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="text-center text-phoenician-terracotta font-body mt-3"
               >
-                {isRecording ? '● Recording... (click to stop)' : '⏳ Transcribing...'}
+                ● Listening...
               </motion.p>
             )}
           </form>

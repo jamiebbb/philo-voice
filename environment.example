@@ -1,10 +1,14 @@
 # OpenAI API Key (required)
 OPENAI_API_KEY=your-openai-api-key-here
 
-# TTS Provider: 'openai' or 'elevenlabs' (optional, defaults to 'openai')
-TTS_PROVIDER=openai
+# OpenAI Assistant ID (recommended - prevents creating new assistants on every deploy)
+OPENAI_ASSISTANT_ID=asst_your_assistant_id_here
 
-# ElevenLabs Configuration (optional, only needed if TTS_PROVIDER=elevenlabs)
+# TTS Provider: 'openai' or 'elevenlabs' (optional, defaults to 'elevenlabs')
+TTS_PROVIDER=elevenlabs
+
+# ElevenLabs Configuration (for TTS)
 ELEVENLABS_API_KEY=your-elevenlabs-api-key-here
-ELEVENLABS_VOICE_ID=optional-custom-voice-id
+# Optional: Custom voice ID (defaults to Jamie: llNlEi50DSCIEuoOIaH7)
+ELEVENLABS_VOICE_ID=llNlEi50DSCIEuoOIaH7
 
