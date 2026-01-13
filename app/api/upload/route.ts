@@ -46,15 +46,36 @@ export async function POST(request: NextRequest) {
       purpose: 'assistants',
     })
 
-    // Note: Adding to vector store requires the beta.vectorStores API
-    // which may not be available in current SDK version
-    // The file will be accessible to assistants but may need manual addition to vector store
+    // Try to add the file to the vector store
+    let vectorStoreStatus = 'pending'
+    let vectorStoreMessage = ''
+    
+    try {
+      // Attempt to add file to vector store
+      // @ts-ignore - vectorStores API may not be in types yet
+      if (openai.beta.vectorStores && openai.beta.vectorStores.files) {
+        // @ts-ignore
+        await openai.beta.vectorStores.files.create(VECTOR_STORE_ID, {
+          file_id: uploadedFile.id,
+        })
+        vectorStoreStatus = 'success'
+        vectorStoreMessage = 'File uploaded and added to vector store successfully! It will be searchable shortly.'
+      } else {
+        vectorStoreStatus = 'manual'
+        vectorStoreMessage = 'File uploaded successfully. Please add it to the vector store manually in OpenAI dashboard.'
+      }
+    } catch (vectorError) {
+      console.error('Vector store error:', vectorError)
+      vectorStoreStatus = 'manual'
+      vectorStoreMessage = 'File uploaded, but could not be automatically added to vector store. Please add manually in OpenAI dashboard.'
+    }
     
     return NextResponse.json({
       success: true,
       fileId: uploadedFile.id,
       filename: uploadedFile.filename,
-      message: 'File uploaded successfully. You may need to manually add it to the vector store in OpenAI dashboard.',
+      vectorStoreStatus,
+      message: vectorStoreMessage,
     })
   } catch (error) {
     console.error('Upload Error:', error)
