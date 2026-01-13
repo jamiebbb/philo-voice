@@ -30,6 +30,7 @@ interface BookMetadata {
     title: string
     author: string
     topic: string
+    library: string
     location: string
     status: 'available' | 'checked-out'
     checkedOutBy: string | null
@@ -65,6 +66,7 @@ export default function LibraryPage() {
   const [metadata, setMetadata] = useState<BookMetadata>({})
   const [editingBook, setEditingBook] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({
+    library: 'The Library',
     location: '',
     status: 'available' as 'available' | 'checked-out',
     checkedOutBy: '',
@@ -122,6 +124,7 @@ export default function LibraryPage() {
       title: filename.replace('.pdf', ''),
       author: '',
       topic: '',
+      library: 'The Library',
       location: 'Not assigned',
       status: 'available' as const,
       checkedOutBy: null,
@@ -184,12 +187,14 @@ export default function LibraryPage() {
 
   const openEditModal = (filename: string) => {
     const meta = metadata[filename] || {
+      library: 'The Library',
       location: 'Not assigned',
       status: 'available' as const,
       checkedOutBy: null,
       notes: '',
     }
     setEditForm({
+      library: meta.library,
       location: meta.location,
       status: meta.status,
       checkedOutBy: meta.checkedOutBy || '',
@@ -450,7 +455,11 @@ export default function LibraryPage() {
                             )}
 
                             <div className="text-sm text-phoenician-sand/70">
-                              📍 {meta?.location || 'Location not set'}
+                              🏛️ {meta?.library || 'Library not set'}
+                            </div>
+
+                            <div className="text-sm text-phoenician-sand/70">
+                              📍 {meta?.location || 'Shelf/location not set'}
                             </div>
 
                             {meta?.status === 'checked-out' && meta.checkedOutBy && (
@@ -512,7 +521,24 @@ export default function LibraryPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block font-body text-phoenician-sand/80 mb-2">
-                    Physical Location
+                    Library Location
+                  </label>
+                  <select
+                    value={editForm.library}
+                    onChange={(e) => setEditForm({...editForm, library: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg bg-phoenician-deep/50 border border-phoenician-bronze/30
+                             text-phoenician-cream font-body
+                             focus:outline-none focus:border-phoenician-gold"
+                  >
+                    <option value="The Library">The Library</option>
+                    <option value="Investment Team Library">Investment Team Library</option>
+                    <option value="Meeting Room Library">Meeting Room Library</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-body text-phoenician-sand/80 mb-2">
+                    Shelf/Row Location
                   </label>
                   <input
                     type="text"
