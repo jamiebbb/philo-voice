@@ -73,11 +73,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Increase the max body size for file uploads
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '512mb',
-    },
-  },
-}
+// Route segment config for large file uploads
+export const maxDuration = 60 // Max execution time in seconds
