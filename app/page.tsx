@@ -134,6 +134,8 @@ export default function Home() {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [renamingChatId, setRenamingChatId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -423,6 +425,28 @@ export default function Home() {
     setVoiceEnabled(prev => !prev)
   }
 
+  const startRenaming = (chatId: string, currentName: string) => {
+    setRenamingChatId(chatId)
+    setRenameValue(currentName)
+  }
+
+  const saveRename = () => {
+    if (!renamingChatId || !renameValue.trim()) return
+    
+    setChats(prev => prev.map(chat => 
+      chat.id === renamingChatId 
+        ? { ...chat, name: renameValue.trim() }
+        : chat
+    ))
+    setRenamingChatId(null)
+    setRenameValue('')
+  }
+
+  const cancelRename = () => {
+    setRenamingChatId(null)
+    setRenameValue('')
+  }
+
   return (
     <main className="min-h-screen relative wave-pattern flex">
       <WaveBackground />
@@ -455,33 +479,81 @@ export default function Home() {
               {chats.map(chat => (
                 <div
                   key={chat.id}
-                  className={`group flex items-center gap-2 p-3 rounded-lg cursor-pointer mb-1 transition-colors
+                  className={`group flex items-center gap-2 p-3 rounded-lg mb-1 transition-colors
                             ${chat.id === activeChatId 
                               ? 'bg-phoenician-sea/40 border border-phoenician-bronze/30' 
                               : 'hover:bg-phoenician-navy/50'}`}
-                  onClick={() => { setActiveChatId(chat.id); setShowSidebar(false) }}
                 >
-                  <span className="flex-1 truncate text-phoenician-cream/90 font-body">
-                    {chat.name}
-                  </span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); clearChat(chat.id) }}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-phoenician-wine/50 rounded transition-all"
-                    title="Clear chat"
-                  >
-                    <svg className="w-4 h-4 text-phoenician-sand/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteChat(chat.id) }}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-phoenician-wine/50 rounded transition-all"
-                    title="Delete chat"
-                  >
-                    <svg className="w-4 h-4 text-phoenician-sand/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  {renamingChatId === chat.id ? (
+                    <div className="flex-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveRename()
+                          if (e.key === 'Escape') cancelRename()
+                        }}
+                        className="flex-1 px-2 py-1 rounded bg-phoenician-deep/50 border border-phoenician-gold/50
+                                 text-phoenician-cream text-sm focus:outline-none"
+                        autoFocus
+                      />
+                      <button
+                        onClick={saveRename}
+                        className="p-1 hover:bg-phoenician-sea/50 rounded"
+                        title="Save"
+                      >
+                        <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={cancelRename}
+                        className="p-1 hover:bg-phoenician-wine/50 rounded"
+                        title="Cancel"
+                      >
+                        <svg className="w-4 h-4 text-phoenician-sand/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span 
+                        className="flex-1 truncate text-phoenician-cream/90 font-body cursor-pointer"
+                        onClick={() => { setActiveChatId(chat.id); setShowSidebar(false) }}
+                      >
+                        {chat.name}
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startRenaming(chat.id, chat.name) }}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-phoenician-sea/50 rounded transition-all"
+                        title="Rename chat"
+                      >
+                        <svg className="w-4 h-4 text-phoenician-sand/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); clearChat(chat.id) }}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-phoenician-wine/50 rounded transition-all"
+                        title="Clear chat"
+                      >
+                        <svg className="w-4 h-4 text-phoenician-sand/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteChat(chat.id) }}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-phoenician-wine/50 rounded transition-all"
+                        title="Delete chat"
+                      >
+                        <svg className="w-4 h-4 text-phoenician-sand/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
                 </div>
               ))}
               

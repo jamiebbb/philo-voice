@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: 'Philo | Voice Knowledge Assistant',
   description: 'Speak with wisdom from the ancient texts. Philo is your AI research companion.',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/favicon.svg',
   },
 }
 
